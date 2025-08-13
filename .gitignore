@@ -1,0 +1,143 @@
+# ZapFi ZK - Security-focused .gitignore
+
+# =======================
+# CRITICAL SECURITY FILES
+# =======================
+# These files contain private data and must NEVER be committed
+
+# Circuit inputs (contain private blinding factors, amounts)
+input.json
+inputs.json
+**/input*.json
+
+# Witness files (contain all private circuit values)
+*.wtns
+witness.wtns
+**/witness*.wtns
+
+# Private keys and secrets
+*.key
+.env
+.env.local
+.env.*.local
+secrets.json
+
+# =======================
+# BUILD ARTIFACTS
+# =======================
+# Generated files that can be recreated
+
+# Circuit compilation outputs
+*.r1cs
+*.sym
+transfer_js/
+
+# Proof generation outputs
+proof.json
+public.json
+*.proof
+*.public
+
+# Trusted setup files (large, can be re-downloaded)
+*.ptau
+pot*.ptau
+powersOfTau*.ptau
+
+# ZKey files (can be regenerated from ceremony)
+*.zkey
+transfer_*.zkey
+
+# Verification keys (can be regenerated)
+verification_key.json
+vkey.json
+
+# =======================
+# NODE.JS
+# =======================
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage directory used by tools like istanbul
+coverage/
+*.lcov
+
+# nyc test coverage
+.nyc_output
+
+# =======================
+# DEVELOPMENT TOOLS
+# =======================
+
+# IDEs and editors
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Logs
+logs
+*.log
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.temp
+
+# =======================
+# BLOCKCHAIN ARTIFACTS
+# =======================
+
+# Hardhat
+cache/
+artifacts/
+typechain/
+typechain-types/
+
+# Truffle
+build/
+
+# =======================
+# TESTING
+# =======================
+.coverage_artifacts
+.coverage_cache
+.coverage_contracts
+
+# =======================
+# DOCUMENTATION
+# =======================
+# Auto-generated docs
+docs/generated/
+*.docx
+*.pdf
+
+# =======================
+# EXAMPLE NOTES
+# =======================
+# Only ignore if they contain real data
+# example-notes.json  # Uncomment if using real values
+
+out/
+
+.states/
+circuits/
