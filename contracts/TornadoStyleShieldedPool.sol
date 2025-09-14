@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import "./TransferVerifier.sol";
-
 // Optional: Compliance verifier for regulatory features
 interface IComplianceVerifier {
     function verifyProof(
@@ -10,6 +8,15 @@ interface IComplianceVerifier {
         uint[2][2] memory _pB,
         uint[2] memory _pC,
         uint[6] memory _publicSignals  // All outputs: [merkleRoot, requestId, commitment, nullifierHash, amountHash, isValid]
+    ) external view returns (bool);
+}
+
+interface IVerifier {
+    function verifyProof(
+        uint[2] calldata _pA,
+        uint[2][2] calldata _pB, 
+        uint[2] calldata _pC, 
+        uint[5] calldata _pubSignals
     ) external view returns (bool);
 }
 
@@ -38,7 +45,7 @@ contract TornadoStyleShieldedPool {
     // IMMUTABLE VARIABLES
     // ============================================================================
     
-    Groth16Verifier public immutable verifier;
+    IVerifier public immutable verifier;
     IComplianceVerifier public immutable complianceVerifier; // Optional compliance
     IPoseidon public immutable poseidon; // Poseidon hash contract
     
@@ -170,7 +177,7 @@ contract TornadoStyleShieldedPool {
         require(_poseidon != address(0), "Invalid poseidon address");
         require(_feeRate < 10000, "Fee rate too high");
 
-        verifier = Groth16Verifier(_verifier);
+        verifier = IVerifier(_verifier);
         poseidon = IPoseidon(_poseidon);
         complianceVerifier = IComplianceVerifier(_complianceVerifier);
         relayerFee = _relayerFee;
@@ -293,12 +300,14 @@ contract TornadoStyleShieldedPool {
         // Calculate _outCommit1 using the withdrawal amount and provided blinding
         uint256 _outCommit1 = poseidon.poseidon([_amount, _outBlinding1]);
         
-        // Prepare public inputs for verifier - use the calculated commitment
-        uint256[4] memory publicInputs = [
-            uint256(_nullifierHash),  // matches circuit output: nullifierHash
-            _outCommit1,              // matches circuit output: outCommit1 (calculated)
-            uint256(_outCommit2),     // matches circuit output: outCommit2 (prover-generated)
-            uint256(_root)            // matches circuit output: merkleRoot
+        // Prepare public inputs for verifier including recipient binding
+        uint256 recipientPublic = uint256(uint160(address(_recipient)));
+        uint256[5] memory publicInputs = [
+            uint256(_nullifierHash),  // nullifierHash
+            _outCommit1,              // outCommit1 (withdraw commitment)
+            uint256(_outCommit2),     // outCommit2 (change commitment if any)
+            uint256(_root),           // merkleRoot
+            recipientPublic           // recipient address (as field element)
         ];
         
         // Verify the SNARK proof
@@ -365,12 +374,14 @@ contract TornadoStyleShieldedPool {
         // Calculate _outCommit1 using the withdrawal amount and provided blinding
         uint256 _outCommit1 = poseidon.poseidon([_amount, _outBlinding1]);
         
-        // Prepare public inputs for verifier (same format as withdraw)
-        uint256[4] memory publicInputs = [
-            uint256(_nullifierHash),  // matches circuit output: nullifierHash
-            _outCommit1,              // matches circuit output: outCommit1 (calculated)
-            uint256(_outCommit2),     // matches circuit output: outCommit2 (change commitment)
-            uint256(_root)            // matches circuit output: merkleRoot
+        // Prepare public inputs for verifier including recipient binding
+        uint256 recipientPublic = uint256(uint160(address(_recipient)));
+        uint256[5] memory publicInputs = [
+            uint256(_nullifierHash),  // nullifierHash
+            _outCommit1,              // outCommit1
+            uint256(_outCommit2),     // outCommit2
+            uint256(_root),           // merkleRoot
+            recipientPublic           // recipient address
         ];
         
         // Verify the SNARK proof

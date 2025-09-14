@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import "./TransferVerifier.sol";
 import "../node_modules/@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 interface IComplianceVerifier {
@@ -10,6 +9,15 @@ interface IComplianceVerifier {
         uint[2][2] memory _pB,
         uint[2] memory _pC,
         uint[6] memory _publicSignals
+    ) external view returns (bool);
+}
+
+interface IVerifier {
+    function verifyProof(
+        uint[2] calldata _pA,
+        uint[2][2] calldata _pB, 
+        uint[2] calldata _pC, 
+        uint[5] calldata _pubSignals
     ) external view returns (bool);
 }
 
@@ -30,7 +38,7 @@ contract TornadoStyleShieldedPoolERC20 {
     uint256 public constant ZERO_VALUE = 0;
 
     // Immutable variables
-    Groth16Verifier public immutable verifier;
+    IVerifier public immutable verifier;
     IComplianceVerifier public immutable complianceVerifier;
     IPoseidon public immutable poseidon;
     IERC20 public immutable token;
@@ -134,7 +142,7 @@ contract TornadoStyleShieldedPoolERC20 {
         require(_poseidon != address(0), "Invalid poseidon address");
         require(_token != address(0), "Invalid token address");
         require(_feeRate < 10000, "Fee rate too high");
-        verifier = Groth16Verifier(_verifier);
+        verifier = IVerifier(_verifier);
         poseidon = IPoseidon(_poseidon);
         complianceVerifier = IComplianceVerifier(_complianceVerifier);
         relayerFee = _relayerFee;
@@ -220,11 +228,13 @@ contract TornadoStyleShieldedPoolERC20 {
         require(!nullifierHashes[_nullifierHash], "Note already spent");
         require(_isValidRoot(_root), "Cannot find your merkle root");
         uint256 _outCommit1 = poseidon.poseidon([_amount, _outBlinding1]);
-        uint256[4] memory publicInputs = [
+        uint256 recipientPublic = uint256(uint160(address(_recipient)));
+        uint256[5] memory publicInputs = [
             uint256(_nullifierHash),
             _outCommit1,
             uint256(_outCommit2),
-            uint256(_root)
+            uint256(_root),
+            recipientPublic
         ];
         require(
             verifier.verifyProof(
@@ -265,11 +275,13 @@ contract TornadoStyleShieldedPoolERC20 {
         require(!nullifierHashes[_nullifierHash], "Note already spent");
         require(_isValidRoot(_root), "Cannot find your merkle root");
         uint256 _outCommit1 = poseidon.poseidon([_amount, _outBlinding1]);
-        uint256[4] memory publicInputs = [
+        uint256 recipientPublic = uint256(uint160(address(_recipient)));
+        uint256[5] memory publicInputs = [
             uint256(_nullifierHash),
             _outCommit1,
             uint256(_outCommit2),
-            uint256(_root)
+            uint256(_root),
+            recipientPublic
         ];
         require(
             verifier.verifyProof(
@@ -732,70 +744,6 @@ contract TornadoStyleShieldedPoolERC20 {
         uint256 rightHash = _computeNodeHash(rightChild, level - 1);
 
         return _hashLeftRight(leftHash, rightHash);
-    }
-
-    function debugMerkleProof(
-        uint32 _leafIndex
-    )
-        external
-        view
-        returns (
-            uint256[] memory pathElements,
-            uint256[] memory pathIndices,
-            uint256[] memory debugInfo
-        )
-    {
-        require(_leafIndex < nextIndex, "Leaf index out of bounds");
-        require(nextIndex > 0, "No deposits in tree");
-
-        pathElements = new uint256[](TREE_DEPTH);
-        pathIndices = new uint256[](TREE_DEPTH);
-        debugInfo = new uint256[](TREE_DEPTH * 3); // [currentIndex, siblingIndex, isRightChild] for each level
-
-        uint32 currentIndex = _leafIndex;
-
-        for (uint32 level = 0; level < TREE_DEPTH; level++) {
-            bool isRightChild = currentIndex % 2 == 1;
-            pathIndices[level] = isRightChild ? 1 : 0;
-
-            // Store debug info
-            debugInfo[level * 3] = currentIndex;
-            debugInfo[level * 3 + 2] = isRightChild ? 1 : 0;
-
-            if (level == 0) {
-                // Leaf level
-                uint32 siblingIndex = isRightChild
-                    ? currentIndex - 1
-                    : currentIndex + 1;
-                debugInfo[level * 3 + 1] = siblingIndex;
-
-                if (siblingIndex < nextIndex) {
-                    pathElements[level] = leaves[siblingIndex];
-                } else {
-                    pathElements[level] = zeros[0];
-                }
-            } else {
-                // Internal levels
-                if (isRightChild) {
-                    debugInfo[level * 3 + 1] = 999999; // Marker for filledSubtrees
-                    pathElements[level] = filledSubtrees[level - 1];
-                } else {
-                    uint32 siblingIndex = currentIndex + 1;
-                    uint32 siblingLeafStart = siblingIndex << (level - 1);
-                    debugInfo[level * 3 + 1] = siblingLeafStart;
-
-                    if (siblingLeafStart < nextIndex) {
-                        pathElements[level] = filledSubtrees[level - 1];
-                    } else {
-                        pathElements[level] = zeros[level];
-                    }
-                }
-            }
-
-            currentIndex /= 2;
-        }
-
-        return (pathElements, pathIndices, debugInfo);
     }
 
     function getLeafIndex(bytes32 _commitment) external view returns (uint32) {
